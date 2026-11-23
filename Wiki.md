@@ -94,11 +94,11 @@ gdisk /dev/sda
 # 格式化LUKS分区
 cryptsetup luksFormat /dev/sda2
 # 打开LUKS
-cryptsetup open /dev/sda2 root
+cryptsetup open /dev/sda2 cryptroot
 # 格式化并挂载分区
 mkfs.fat -F 32 /dev/sda1
-mkfs.ext4 /dev/mapper/root
-mount /dev/mapper/root /mnt
+mkfs.ext4 /dev/mapper/cryptroot
+mount /dev/mapper/cryptroot /mnt
 mount --mkdir /dev/sda1 /mnt/boot
 ```
 ```bash
@@ -209,7 +209,7 @@ console-mode max
 editor   no  
 ```
 ```bash
-blkid /dev/sdx2
+blkid /dev/sda2
 ```
 ```bash
 vim /boot/loader/entries/arch.conf
@@ -219,7 +219,7 @@ title   Arch Linux
 linux   /vmlinuz-linux  
 initrd  /intel-ucode.img  
 initrd  /initramfs-linux.img  
-options rd.luks.name=<UUID>=cryptroot root=/dev/mapper/cryptroot rootflags=subvol=@ rw
+options rd.luks.name=<UUID>=cryptroot root=/dev/mapper/cryptroot rw
 
 不加密磁盘写法  
 title   Arch Linux  
