@@ -101,6 +101,34 @@ mkfs.ext4 /dev/mapper/root
 mount /dev/mapper/root /mnt
 mount --mkdir /dev/sda1 /mnt/boot
 ```
+```bash
+# brtfs分区方案
+lsblk
+gdisk /dev/sda
+# 输入: x (进入专家模式)
+# 输入: z (清空所有分区表)
+# 输入: o (创建 GPT 分区格式)
+# 输入: n (创建新分区，hex code ef00)
+# 输入: n (余下所有空间 hex code 8309）
+# 输入: w (写入磁盘更改)
+# 格式化LUKS分区
+cryptsetup luksFormat /dev/sda2
+# 打开LUKS
+cryptsetup open /dev/sda2 cryptroot
+# 在解密后的设备上创建 Btrfs
+mkfs.btrfs -L ARCH /dev/mapper/cryptroot
+mount /dev/mapper/cryptroot /mnt
+btrfs subvolume create /mnt/@
+btrfs subvolume create /mnt/@home
+umount /mnt
+# 挂载 @ 子卷
+mount -o compress=zstd,subvol=@ /dev/mapper/cryptroot /mnt
+mkdir -p /mnt/home /mnt/boot
+# 挂载 @home 子卷
+mount -o compress=zstd,subvol=@home /dev/mapper/cryptroot /mnt/home
+# EFI 分区挂载
+mount /dev/sda1 /mnt/boot
+```
 配置镜像源
 ```bash
 vim /etc/pacman.d/mirrorlist
@@ -113,7 +141,7 @@ Server = https://fastly.mirror.pkgbuild.com/$repo/os/$arch
  ```
 安装基础系统
 ```bash
-pacstrap -K /mnt base linux linux-firmware linux-headers intel-ucode git base-devel dkms cryptsetup
+pacstrap -K /mnt base linux linux-firmware linux-headers intel-ucode git base-devel dkms cryptsetup btrfs-progs sudo vim networkmanager
 ```
 生成 fstab 文件
 ```bash
@@ -127,7 +155,7 @@ arch-chroot /mnt
 ```
 安装必要软件包
 ```bash
-pacman -S plasma-login-manager plasma-desktop kwalletmanager kscreen krdp konsole dolphin sudo vim networkmanager networkmanager-openvpn plasma-nm noto-fonts-cjk
+pacman -S plasma-login-manager plasma-desktop kwalletmanager kscreen krdp konsole dolphin networkmanager-openvpn plasma-nm noto-fonts-cjk
 ```
 设置时区与时间
 ```bash
@@ -191,7 +219,7 @@ title   Arch Linux
 linux   /vmlinuz-linux  
 initrd  /intel-ucode.img  
 initrd  /initramfs-linux.img  
-options rd.luks.name=<UUID>=root root=/dev/mapper/root rw
+options rd.luks.name=<UUID>=cryptroot root=/dev/mapper/cryptroot rootflags=subvol=@ rw
 
 不加密磁盘写法  
 title   Arch Linux  
@@ -210,18 +238,25 @@ systemctl enable NetworkManager
 exit
 umount -R /mnt
 ```  
-## sudo免密时间长度
+## SUDO免密时间长度
 ```bash
 EDITOR=vim visudo
 :Defaults env_reset,timestamp_timeout=60
 ```
 ## 配置/swapfile 文件
 ```bash
+# ext4
 sudo fallocate -l 4G /swapfile
 sudo chmod 600 /swapfile
 sudo mkswap /swapfile
 sudo swapon /swapfile
 sudo swapon --show
+sudo vim /etc/fstab
+:/swapfile none swap defaults 0 0
+
+# btrfs
+sudo btrfs filesystem mkswapfile --size 4G /swapfile
+sudo swapon /swapfile
 sudo vim /etc/fstab
 :/swapfile none swap defaults 0 0
 ```
